@@ -1,0 +1,21 @@
+organization_id|patient_id|encounter_id|observation_id|category|effective_date|effective_time|code|code_type|status|value|value_units|low_test_value|high_test_value
+org001|P0001|60000001|OBS00001|vital signs|2019-12-01|00:00:00|poca1c|loinc|completed|34.17|||
+org001|P0002|60000002|OBS00002|vital signs|2019-12-02|00:00:00|97063-2|loinc|completed|13.0|%|34.5|96.7
+org001|P0003|60000003|OBS00003|survey|2019-12-03|00:00:00|8460-6|loinc|completed|47.48|mm[Hg]|36.7|77.2
+org001|P0004|60000004|OBS00004|survey|2019-12-04|00:00:00|8280-0|loinc|completed|85.81|cm|41.3|88.9
+org001|P0005|60000005|OBS00005|survey|2019-12-05|00:00:00|10466-1|loinc|completed|25.15|mg/dL|22.3|99.9
+org001|P0006|60000006|OBS00006|laboratory|2019-12-06|00:00:00|17856-6|loinc|completed|87.88|mm[Hg]|33.2|94.1
+org001|P0007|60000007|OBS00007|survey|2019-12-07|00:00:00|2089-1|loinc|completed|85.58|mm[Hg]|41.7|95.8
+org001|P0008|60000008|OBS00008|social history|2019-12-08|00:00:00|88124-3|loinc|completed|67.6|mg/dL|26.2|69.4
+org001|P0009|60000009|OBS00009|laboratory|2019-12-09|00:00:00|88124-3|loinc|completed|34.82|mm[Hg]|28.6|93.1
+org001|P0010|60000010|OBS00010|vital signs|2019-12-10|00:00:00|8280-0|loinc|completed|14.21|mg/dL|4.7|95.6
+org001|P0011|60000011|OBS00011|laboratory|2019-12-11|00:00:00|17856-6|loinc|completed|33.44|cm|24.5|91.9
+org001|P0012|60000012|OBS00012|vital signs|2019-12-12|00:00:00|56540-8|loinc|completed|75.56|||
+org001|P0013|60000013|OBS00013|survey|2019-12-13|00:00:00|33037-3|loinc|completed|81.82|mg/dL|42.0|53.5
+org001|P0014|60000014|OBS00014|survey|2019-12-14|00:00:00|32636-3|loinc|completed|28.81|mm[Hg]|46.1|92.9
+org001|P0015|60000015|OBS00015|laboratory|2019-12-15|00:00:00|8460-6|loinc|completed|27.4|%|26.9|52.2
+org001|P0016|60000016|OBS00016|survey|2019-12-16|00:00:00|70272-0|loinc|completed|86.9|cm|32.8|59.5
+org001|P0017|60000017|OBS00017|laboratory|2019-12-17|00:00:00|8478-0|loinc|completed|33.6|kg|27.7|92.4
+org001|P0018|60000018|OBS00018|vital signs|2019-12-18|00:00:00|3024-7|loinc|completed|99.77|kg|14.9|55.0
+org001|P0019|60000019|OBS00019|social history|2019-12-19|00:00:00|11367-0|loinc|completed|50.44|kg|33.9|85.5
+org001|P0020|60000020|OBS00020|vital signs|2019-12-20|00:00:00|3026-2|loinc|completed|43.75|kg|17.6|68.7

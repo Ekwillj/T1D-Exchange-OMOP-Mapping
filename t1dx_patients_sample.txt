@@ -1,0 +1,21 @@
+organization_id|patient_id|provider_id|birth_date|postal_code|death_date|cause_of_death|sex|gender_identity|race_1|race_2|ethnicity|language|caregivers_language|primary_insurance_type|secondary_insurance_type|tertiary_insurance_type|education_level
+org001|P00001|PR0001|19850715|98765|||male|male|2054-5|2131-1|2186-5|tl|ar|10|3||ms
+org001|P00002|PR0002|20051231|54321|||other|male|2106-3|2028-9|2135-2|fr|zh|10|||hsg
+org001|P00003|PR0003|19781122||20181231|Cancer|other|non-binary|2028-9|1002-5|2186-5|ru|ru|9|4|2|ms
+org001|P00004|PR0004|19781122|54321|20181231||unknown|non-binary|2106-3|1002-5|2135-2|vi|vi|3|1|9|sc
+org001|P00005|PR0005|19900101|67890|||female|transgender_female|2131-1|2131-1|2135-2|en|zh|5|5|3|ps
+org001|P00006|PR0006|20051231|12345|||other|transgender_female|1002-5|1002-5|9999-9|fr|tl|4|5|5|unknown
+org001|P00007|PR0007||12345|||other|male|2131-1|1002-5|2186-5|ko|other|4|5|5|es
+org001|P00008|PR0008|19900101|12345|||unknown|male|2106-3|2106-3|2186-5|ko|fr|3||2|pg
+org001|P00009|PR0009|19850715||20200101|Accident|other|non-binary|2106-3|2028-9|2135-2|unknown|ru|9|9|2|cg
+org001|P00010|PR0010|20051231|98765|20200101|Accident|male|unknown|2131-1|2106-3|2135-2|hy|unknown|2|4|10|kg
+org001|P00011|PR0011||12345|||female|transgender_male|2028-9|2106-3|2186-5|ar|vi|3|2||ms
+org001|P00012|PR0012|19850715|54321|20200101||male|transgender_female|1002-5|9999-9|2135-2|fr|ko|10|9|4|kg
+org001|P00013|PR0013|20051231||||male|unknown|2028-9|2076-8|2186-5|ru|zh|2|10|2|cg
+org001|P00014|PR0014|20051231|67890|20200101|Cancer|non-binary|transgender_male|2106-3|1002-5|9999-9|ar|unknown|3|9|1|unknown
+org001|P00015|PR0015|20051231||20181231|Cancer|male|other|2106-3|1002-5|2135-2|hy|unknown|3|10|5|unknown
+org001|P00016|PR0016|19900101||20181231|Cardiac arrest|unknown|non-binary|2028-9|2106-3|2186-5|unknown|ar|5|10|10|shs
+org001|P00017|PR0017|19900101|67890|20200101|Accident|unknown|female|2054-5|9999-9|2186-5|es|ru|9|3|3|hsg
+org001|P00018|PR0018|19850715|12345|20181231|Cardiac arrest|female|male|1002-5|2028-9|9999-9|other|tl|3|1|9|kg
+org001|P00019|PR0019|19900101||20200101|Accident|male|non-binary|1002-5|1002-5|9999-9|es|en|3|1|4|shs
+org001|P00020|PR0020|19781122|98765|20200101||other|other|2131-1|2131-1|2135-2|fr|ko|2|10|4|pg

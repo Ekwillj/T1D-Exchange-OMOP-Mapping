@@ -1,0 +1,21 @@
+organization_id|patient_id|encounter_id|medication_id|prescriber_id|written_date|status|code|code_type|drug_name|drug_name_generic|drug_class|drug_sub_class
+org001|P0001|60000001|68703572410984167282436227910084|PR0001|2020-07-21|inactive|9101-1|loinc|Glucagon (rDNA) 1 MG Injection|Glucagon (rDNA) 1 MG Injection|Antidiabetic|DiabeticOther
+org001|P0002|60000002|26496757468111354929625584342892|PR0002|2020-03-30|others|1121-3|loinc|Insulin Aspart 100UNIT/ML Inj|Insulin Aspart|Antidiabetic|Insulin
+org001|P0003|60000003|57289367061733166297676573046682|PR0003|2022-12-31|active|1121-3|loinc|Insulin Aspart 100UNIT/ML Inj|Insulin Aspart|Antidiabetic|Insulin
+org001|P0004|60000004|16227891800034937498732504595958|PR0004|2022-06-23|others|3141-5|loinc|Insulin Glargine 100UNIT/ML Inj|Insulin Glargine|Antidiabetic|Insulin
+org001|P0005|60000005|99316563119178244761248124950010|PR0005|2022-06-22|inactive|1234-5|loinc|Insulin Lispro 100UNIT/ML Inj Soln|Insulin Lispro|Antidiabetic|Insulin
+org001|P0006|60000006|59594521348618217941975846551296|PR0006|2022-10-24|others|1121-3|loinc|Insulin Aspart 100UNIT/ML Inj|Insulin Aspart|Antidiabetic|Insulin
+org001|P0007|60000007|94227585399287186734411185480516|PR0007|2023-03-24|inactive|1234-5|loinc|Insulin Lispro 100UNIT/ML Inj Soln|Insulin Lispro|Antidiabetic|Insulin
+org001|P0008|60000008|56463267733875238829813041724770|PR0008|2021-09-06|others|5678-9|loinc|Metformin HCL 500 MG Oral Tablet|Metformin|Antidiabetic|Biguanide
+org001|P0009|60000009|13388945342206854266987744574082|PR0009|2023-01-02|others|3141-5|loinc|Insulin Glargine 100UNIT/ML Inj|Insulin Glargine|Antidiabetic|Insulin
+org001|P0010|60000010|13257866407280378743010240801212|PR0010|2020-02-24|inactive|1234-5|loinc|Insulin Lispro 100UNIT/ML Inj Soln|Insulin Lispro|Antidiabetic|Insulin
+org001|P0011|60000011|11804866052259506984518550359430|PR0011|2022-02-09|active|1121-3|loinc|Insulin Aspart 100UNIT/ML Inj|Insulin Aspart|Antidiabetic|Insulin
+org001|P0012|60000012|67598728783814698655705925895417|PR0012|2022-04-23|inactive|1234-5|loinc|Insulin Lispro 100UNIT/ML Inj Soln|Insulin Lispro|Antidiabetic|Insulin
+org001|P0013|60000013|41080941276893965141464838768811|PR0013|2021-07-06|others|1121-3|loinc|Insulin Aspart 100UNIT/ML Inj|Insulin Aspart|Antidiabetic|Insulin
+org001|P0014|60000014|73425927572017490228304674092109|PR0014|2022-05-28|others|5678-9|loinc|Metformin HCL 500 MG Oral Tablet|Metformin|Antidiabetic|Biguanide
+org001|P0015|60000015|61636004977691083409560646931886|PR0015|2021-06-01|others|3141-5|loinc|Insulin Glargine 100UNIT/ML Inj|Insulin Glargine|Antidiabetic|Insulin
+org001|P0016|60000016|25934707962313271090757274325676|PR0016|2020-11-23|inactive|1234-5|loinc|Insulin Lispro 100UNIT/ML Inj Soln|Insulin Lispro|Antidiabetic|Insulin
+org001|P0017|60000017|93345351827082759580639398428949|PR0017|2021-01-16|others|1234-5|loinc|Insulin Lispro 100UNIT/ML Inj Soln|Insulin Lispro|Antidiabetic|Insulin
+org001|P0018|60000018|97844465550598750304183251796014|PR0018|2021-11-16|active|1121-3|loinc|Insulin Aspart 100UNIT/ML Inj|Insulin Aspart|Antidiabetic|Insulin
+org001|P0019|60000019|87584143796553087968139179317168|PR0019|2020-08-02|active|9101-1|loinc|Glucagon (rDNA) 1 MG Injection|Glucagon (rDNA) 1 MG Injection|Antidiabetic|DiabeticOther
+org001|P0020|60000020|97141063562048011759393260912650|PR0020|2021-12-29|active|1121-3|loinc|Insulin Aspart 100UNIT/ML Inj|Insulin Aspart|Antidiabetic|Insulin
