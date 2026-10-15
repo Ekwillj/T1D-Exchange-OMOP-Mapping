@@ -33,3 +33,28 @@ The outcomes of that vocabulary work may inform future revisions to this mapping
 Disclaimer
 
 This repository represents an ongoing collaborative effort and should not be considered a final or endorsed mapping specification. Mapping decisions, vocabulary assignments, and implementation guidance may change as validation, community review, and vocabulary development progress.
+
+**1. Create the OMOP CDM Schema**
+
+Run the appropriate OMOP CDM DDL scripts for your database platform to create the OMOP tables and schema structure.
+
+**2. Create the T1DX Source Tables**
+
+Run the T1DX table creation script included in this repository to create the source tables used by the ETL process.
+
+If T1DX source data is not available, execute the provided bulk insert script to load sample data for testing and validation purposes.
+
+**3. Execute the ETL Process**
+
+Run the ETL SQL scripts to transform and load data from the T1DX source tables into the OMOP CDM tables.
+
+The ETL process applies the draft T1DX-to-OMOP mappings documented in this repository and populates the appropriate OMOP domains and concepts based on the current mapping specifications.
+
+**4. Validate the Results**
+
+After the ETL process completes:
+
+Confirm record counts between T1DX source tables and OMOP target tables.
+Review mapping outputs for expected OMOP concepts and domains.
+Identify records requiring additional vocabulary review or mapping refinement.
+Document any issues or discrepancies for future mapping updates.
