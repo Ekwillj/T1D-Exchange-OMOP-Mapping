@@ -1,0 +1,535 @@
+GO
+CREATE OR ALTER VIEW dbo.v_payer_plan_tier AS
+SELECT
+    r.person_id,
+    r.tier,
+    r.payer_plan_period_start_date,
+    r.payer_plan_period_end_date,
+    CASE r.payer_concept_id
+        WHEN 436 THEN '1'     -- Self-pay
+        WHEN 327 THEN '2'     -- Private Insurance
+        WHEN 289 THEN '3'     -- Medicaid
+        WHEN 296 THEN '4'     -- DoD TRICARE (CHAMPUS)
+        WHEN 280 THEN '5'     -- Medicare
+        ELSE CASE WHEN r.payer_source_value IN ('9', '10')
+                  THEN r.payer_source_value   -- 'Other' / 'Unknown' have no concept
+                  ELSE '10'
+             END
+    END AS insurance_type
+FROM (
+    SELECT t.*,
+           ROW_NUMBER() OVER (PARTITION BY t.person_id, t.tier
+                              ORDER BY t.payer_plan_period_start_date DESC,
+                                       t.payer_plan_period_id) AS rn
+    FROM (
+        SELECT pp.person_id,
+               pp.payer_plan_period_id,
+               pp.payer_plan_period_start_date,
+               pp.payer_plan_period_end_date,
+               pp.payer_concept_id,
+               pp.payer_source_value,
+               CASE WHEN pp.plan_source_value IN ('primary', 'secondary', 'tertiary')
+                    THEN pp.plan_source_value
+                    ELSE CASE ROW_NUMBER() OVER (PARTITION BY pp.person_id
+                                                 ORDER BY pp.payer_plan_period_start_date,
+                                                          pp.payer_plan_period_id)
+                             WHEN 1 THEN 'primary'
+                             WHEN 2 THEN 'secondary'
+                             WHEN 3 THEN 'tertiary'
+                         END
+               END AS tier
+        FROM dbo.payer_plan_period pp
+    ) t
+    WHERE t.tier IS NOT NULL
+) r
+WHERE r.rn = 1;
+GO
+
+# ---- PATIENTS  <-  person, location, death, payer_plan_period, observation
+# --- Language rows written by the forward ETL: observation_source_value = the T1DX field name,
+# --- value_as_concept_id = the language concept, value_as_string = the raw T1DX code.
+DECLARE @language_source_code            NVARCHAR(50) = 'language';
+DECLARE @caregivers_language_source_code NVARCHAR(50) = 'caregivers_language';
+ 
+SELECT
+    COALESCE(om.t1d_organization_id, CAST(p.care_site_id AS NVARCHAR(32)))  AS organization_id,
+    COALESCE(pm.t1d_patient_id,      CAST(p.person_id    AS NVARCHAR(32)))  AS patient_id,
+    COALESCE(prm.t1d_provider_id,    CAST(p.provider_id  AS NVARCHAR(32)))  AS provider_id,
+    CASE WHEN p.year_of_birth IS NOT NULL
+         THEN DATEFROMPARTS(p.year_of_birth,
+                            COALESCE(p.month_of_birth, 1),
+                            COALESCE(p.day_of_birth, 1))
+    END                                                                      AS birth_date,
+    l.zip                                                                    AS postal_code,
+    d.death_date,
+    -- forward ETL keeps the raw value in cause_source_value; concept ID is the fallback
+    COALESCE(d.cause_source_value,
+             CASE WHEN d.cause_concept_id <> 0
+                  THEN CAST(d.cause_concept_id AS NVARCHAR(50)) END)         AS cause_of_death,
+    sex.allowed_value                       AS sex,
+    gender_identity.allowed_value           AS gender_identity,
+    race.allowed_value                      AS race_1,
+    ethnicity.allowed_value                 AS ethnicity,
+    language.allowed_value                  AS language,
+    caregivers_language.allowed_value       AS caregivers_language,
+    primary_insurance_type.allowed_value    AS primary_insurance_type,
+    secondary_insurance_type.allowed_value  AS secondary_insurance_type,
+    tertiary_insurance_type.allowed_value   AS tertiary_insurance_type
+FROM dbo.person p
+LEFT JOIN dbo.patient_id_map   pm  ON pm.omop_person_id    = p.person_id
+LEFT JOIN dbo.organization_map om  ON om.omop_care_site_id = p.care_site_id
+LEFT JOIN dbo.provider_map     prm ON prm.omop_provider_id = p.provider_id
+LEFT JOIN dbo.location         l   ON l.location_id        = p.location_id
+LEFT JOIN dbo.death            d   ON d.person_id          = p.person_id
+LEFT JOIN dbo.v_payer_plan_tier pay1 ON pay1.person_id = p.person_id AND pay1.tier = 'primary'
+LEFT JOIN dbo.v_payer_plan_tier pay2 ON pay2.person_id = p.person_id AND pay2.tier = 'secondary'
+LEFT JOIN dbo.v_payer_plan_tier pay3 ON pay3.person_id = p.person_id AND pay3.tier = 'tertiary'
+ 
+-- (one row each, so patient rows are never multiplied)
+OUTER APPLY (
+    SELECT TOP (1) o.value_as_string, o.value_as_concept_id
+    FROM dbo.observation o
+    WHERE o.person_id = p.person_id
+      AND o.observation_source_value = @language_source_code
+    ORDER BY o.observation_date DESC, o.observation_id DESC
+) lang_obs
+OUTER APPLY (
+    SELECT TOP (1) o.value_as_string, o.value_as_concept_id
+    FROM dbo.observation o
+    WHERE o.person_id = p.person_id
+      AND o.observation_source_value = @caregivers_language_source_code
+    ORDER BY o.observation_date DESC, o.observation_id DESC
+) cg_lang_obs
+ 
+-- sex: forward ETL writes 8507 / 8532 / 8521 and 0 for unknown
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'sex' AND allowed_value =
+        CASE p.gender_concept_id
+            WHEN 8507 THEN 'male'
+            WHEN 8532 THEN 'female'
+            WHEN 8521 THEN 'other'
+            ELSE 'unknown'  
+        END
+) sex
+ 
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'gender_identity' AND allowed_value =
+        CASE p.gender_concept_id
+            WHEN 8507     THEN 'male'
+            WHEN 8532     THEN 'female'
+            WHEN 36309787 THEN 'transgender_female'
+            WHEN 36309198 THEN 'transgender_male'
+            WHEN 8521     THEN 'other'
+            ELSE 'unknown'
+        END
+) gender_identity
+ 
+# --- race: same concepts as the forward ETL (1546847 = multiple races, which cannot be
+# --- split back into race_1 / race_2 here, so it returns the 'unknown' code)
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'race' AND allowed_value =
+        CASE p.race_concept_id
+            WHEN 8657 THEN '1002-5'
+            WHEN 8515 THEN '2028-9'
+            WHEN 8516 THEN '2054-5'
+            WHEN 8557 THEN '2076-8'
+            WHEN 8527 THEN '2106-3'
+            ELSE '9999-9'
+        END
+) race
+ 
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'ethnicity' AND allowed_value =
+        CASE p.ethnicity_concept_id
+            WHEN 38003563 THEN '2135-2'
+            WHEN 38003564 THEN '2186-5'
+            ELSE '9999-9'
+        END
+) ethnicity
+ 
+# -- language: concept first (value_as_concept_id), raw text as fallback ('other' / 'unknown' have no concept)
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'language' AND allowed_value =
+        COALESCE(
+            CASE lang_obs.value_as_concept_id
+                WHEN 45882691 THEN 'en'
+                WHEN 45884724 THEN 'es'
+                WHEN 45876350 THEN 'zh'
+                WHEN 45876631 THEN 'vi'
+                WHEN 45877647 THEN 'fr'
+                WHEN 4181374  THEN 'ar'
+                WHEN 45883132 THEN 'ko'
+                WHEN 4180063  THEN 'hy'
+                WHEN 4181539  THEN 'ru'
+                WHEN 45877302 THEN 'tl'
+            END,
+            lang_obs.value_as_string)
+) language
+ 
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'caregivers_language' AND allowed_value =
+        COALESCE(
+            CASE cg_lang_obs.value_as_concept_id
+                WHEN 45882691 THEN 'en'
+                WHEN 45884724 THEN 'es'
+                WHEN 45876350 THEN 'zh'
+                WHEN 45876631 THEN 'vi'
+                WHEN 45877647 THEN 'fr'
+                WHEN 4181374  THEN 'ar'
+                WHEN 45883132 THEN 'ko'
+                WHEN 4180063  THEN 'hy'
+                WHEN 4181539  THEN 'ru'
+                WHEN 45877302 THEN 'tl'
+            END,
+            cg_lang_obs.value_as_string)
+) caregivers_language
+ 
+-- insurance codes come from v_payer_plan_tier (NULL when the patient has no such tier)
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'primary_insurance_type' AND allowed_value = pay1.insurance_type
+) primary_insurance_type
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'secondary_insurance_type' AND allowed_value = pay2.insurance_type
+) secondary_insurance_type
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'tertiary_insurance_type' AND allowed_value = pay3.insurance_type
+) tertiary_insurance_type
+ 
+WHERE sex.allowed_value IS NOT NULL
+  AND gender_identity.allowed_value IS NOT NULL
+  AND race.allowed_value IS NOT NULL
+  AND ethnicity.allowed_value IS NOT NULL;
+ 
+# --- PROVIDERS  <-  provider
+# --- Forward ETL currently writes the specialty concept ID into specialty_source_value
+# --- (specialty_concept_id is 0), so both columns are checked.
+# --- pos_id has no counterpart in the forward ETL, so it returns NULL.
+
+SELECT
+    COALESCE(om.t1d_organization_id, CAST(pr.care_site_id AS NVARCHAR(32))) AS organization_id,
+    pr.npi                                  AS npi_id,
+    CAST(NULL AS NVARCHAR(50))              AS pos_id,     
+    pr.dea                                  AS dea_id,
+    COALESCE(prm.t1d_provider_id, CAST(pr.provider_id AS NVARCHAR(32))) AS provider_id,
+    provider_type.allowed_value             AS provider_type
+FROM dbo.provider pr
+LEFT JOIN dbo.provider_map     prm ON prm.omop_provider_id = pr.provider_id
+LEFT JOIN dbo.organization_map om  ON om.omop_care_site_id = pr.care_site_id
+OUTER APPLY (
+    SELECT COALESCE(NULLIF(pr.specialty_concept_id, 0),
+                    TRY_CAST(pr.specialty_source_value AS INT)) AS specialty_id
+) sp
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'provider_type' AND allowed_value =
+        CASE
+            WHEN pr.specialty_source_value IN
+                 ('MD','DO','PA','NP','RN','RD','EP','PS','SW','CDE','PH','OD','PO','PT','OT','OTH')
+                 THEN pr.specialty_source_value        -- raw T1DX value, if stored that way
+            ELSE CASE sp.specialty_id
+                WHEN 32577    THEN 'MD'
+                WHEN 45877933 THEN 'DO'
+                WHEN 38004512 THEN 'PA'
+                WHEN 38004487 THEN 'NP'
+                WHEN 38003716 THEN 'RN'
+                WHEN 38003690 THEN 'RD'
+                WHEN 38004044 THEN 'EP'
+                WHEN 42628315 THEN 'PS'
+                WHEN 38004499 THEN 'SW'
+                WHEN 38003799 THEN 'CDE'
+                WHEN 38003810 THEN 'PH'
+                WHEN 4151051  THEN 'OD'
+                WHEN 38004030 THEN 'PO'
+                WHEN 38004490 THEN 'PT'
+                WHEN 38004492 THEN 'OT'
+                ELSE 'OTH'
+            END
+        END
+) provider_type
+WHERE provider_type.allowed_value IS NOT NULL;
+ 
+ 
+# --- ENCOUNTERS  <-  visit_occurrence, payer_plan_period
+# --- Forward ETL stores the original T1DX class in visit_source_value, so it is used
+# --- first (the concept mapping is lossy: outpatient / ambulatory / daytime / education
+# --- all become 9202).
+# --- encounter_reason_code_type, status and endo_visit are not loaded by the forward ETL,
+# --- so they return NULL (TODO if the spec defines an OMOP home for them).
+# --- encounter_time: the forward ETL currently writes it to visit_end_datetime
+# --- (visit_start_datetime is not in its column list), so both are checked.
+
+SELECT
+    COALESCE(om.t1d_organization_id, CAST(vo.care_site_id AS NVARCHAR(32)))  AS organization_id,
+    COALESCE(pm.t1d_patient_id, CAST(vo.person_id AS NVARCHAR(32)))          AS patient_id,
+    COALESCE(prm.t1d_provider_id, CAST(vo.provider_id AS NVARCHAR(32)))      AS provider_id,
+    COALESCE(em.t1d_encounter_id, CAST(vo.visit_occurrence_id AS NVARCHAR(32))) AS encounter_id,
+    vo.visit_start_date                                                      AS encounter_date,
+    COALESCE(vo.visit_start_datetime, vo.visit_end_datetime)                 AS encounter_time,
+    class.allowed_value                                                      AS class,
+    CAST(NULL AS NVARCHAR(32))                                               AS encounter_reason_code_type, -- TODO
+    CAST(NULL AS NVARCHAR(32))                                               AS status,                     -- TODO
+    primary_insurance_type.allowed_value                                     AS primary_insurance_type,
+    secondary_insurance_type.allowed_value                                   AS secondary_insurance_type,
+    tertiary_insurance_type.allowed_value                                    AS tertiary_insurance_type,
+    CAST(NULL AS NVARCHAR(32))                                               AS endo_visit                  -- TODO
+FROM dbo.visit_occurrence vo
+LEFT JOIN dbo.encounter_map    em  ON em.omop_visit_id     = vo.visit_occurrence_id
+LEFT JOIN dbo.patient_id_map   pm  ON pm.omop_person_id    = vo.person_id
+LEFT JOIN dbo.provider_map     prm ON prm.omop_provider_id = vo.provider_id
+LEFT JOIN dbo.organization_map om  ON om.omop_care_site_id = vo.care_site_id
+ 
+-- coverage in effect on the visit date, by tier
+LEFT JOIN dbo.v_payer_plan_tier pay1
+       ON pay1.person_id = vo.person_id AND pay1.tier = 'primary'
+      AND vo.visit_start_date BETWEEN pay1.payer_plan_period_start_date AND pay1.payer_plan_period_end_date
+LEFT JOIN dbo.v_payer_plan_tier pay2
+       ON pay2.person_id = vo.person_id AND pay2.tier = 'secondary'
+      AND vo.visit_start_date BETWEEN pay2.payer_plan_period_start_date AND pay2.payer_plan_period_end_date
+LEFT JOIN dbo.v_payer_plan_tier pay3
+       ON pay3.person_id = vo.person_id AND pay3.tier = 'tertiary'
+      AND vo.visit_start_date BETWEEN pay3.payer_plan_period_start_date AND pay3.payer_plan_period_end_date
+ 
+CROSS APPLY (
+    SELECT CASE
+        WHEN vo.visit_source_value IN ('inpatient','outpatient','ambulatory','emergency','home',
+                                       'field','daytime','virtual','education','other',
+                                       'medication','laboratory')
+            THEN vo.visit_source_value
+        ELSE CASE vo.visit_concept_id
+                WHEN 9201     THEN 'inpatient'
+                WHEN 9202     THEN 'outpatient'
+                WHEN 9203     THEN 'emergency'
+                WHEN 581476   THEN 'home'
+                WHEN 42898160 THEN 'field'
+                WHEN 722455   THEN 'virtual'
+                WHEN 38004338 THEN 'medication'
+                WHEN 32036    THEN 'laboratory'
+                ELSE 'other'
+             END
+    END AS class_value
+) cv
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'class' AND allowed_value = cv.class_value
+) class
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'primary_insurance_type' AND allowed_value = pay1.insurance_type
+) primary_insurance_type
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'secondary_insurance_type' AND allowed_value = pay2.insurance_type
+) secondary_insurance_type
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'tertiary_insurance_type' AND allowed_value = pay3.insurance_type
+) tertiary_insurance_type
+WHERE class.allowed_value IS NOT NULL;
+ 
+ 
+# --- CONDITIONS  <-  condition_occurrence
+
+SELECT
+    COALESCE(cm.t1d_condition_id, CAST(co.condition_occurrence_id AS NVARCHAR(32))) AS condition_id,
+    COALESCE(pm.t1d_patient_id,   CAST(co.person_id AS NVARCHAR(32)))               AS patient_id,
+    COALESCE(em.t1d_encounter_id, CAST(co.visit_occurrence_id AS NVARCHAR(32)))     AS encounter_id,
+    COALESCE(prm.t1d_provider_id, CAST(co.provider_id AS NVARCHAR(32)))             AS provider_id,
+    COALESCE(om.t1d_organization_id, CAST(vo.care_site_id AS NVARCHAR(32)))         AS organization_id,
+    co.condition_start_date                                                         AS onset_date,
+    co.condition_end_date                                                           AS abatement_date,
+    co.condition_source_value                                                       AS code,
+    code_type.allowed_value                                                         AS code_type
+FROM dbo.condition_occurrence co
+LEFT JOIN dbo.condition_map    cm  ON cm.omop_condition_id = co.condition_occurrence_id
+LEFT JOIN dbo.patient_id_map   pm  ON pm.omop_person_id    = co.person_id
+LEFT JOIN dbo.encounter_map    em  ON em.omop_visit_id     = co.visit_occurrence_id
+LEFT JOIN dbo.provider_map     prm ON prm.omop_provider_id = co.provider_id
+LEFT JOIN dbo.visit_occurrence vo  ON vo.visit_occurrence_id = co.visit_occurrence_id
+LEFT JOIN dbo.organization_map om  ON om.omop_care_site_id = vo.care_site_id
+LEFT JOIN dbo.concept          src ON src.concept_id       = co.condition_source_concept_id
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'code_type' AND allowed_value =
+        CASE src.vocabulary_id
+            WHEN 'SNOMED'  THEN 'snomedct'
+            WHEN 'ICD10CM' THEN 'icd10'
+            WHEN 'ICD9CM'  THEN 'icd9'
+            WHEN 'ICD11'   THEN 'icd11'
+            ELSE 'other'
+        END
+) code_type
+WHERE code_type.allowed_value IS NOT NULL;
+ 
+# --- OBSERVATIONS  <-  observation (+ measurement)
+# --- Forward ETL loads every T1DX observation into dbo.observation and, for the
+# --- lab / vital LOINC codes, again into dbo.measurement. Reading dbo.observation alone
+# --- therefore returns every T1DX observation exactly once.
+# --- The medication-status rows the forward ETL adds to dbo.observation
+# --- (obs_event_field_concept_id = 1147707) are NOT T1DX observations and are excluded;
+# --- they feed the medications export instead.
+                        
+SELECT
+    COALESCE(om.t1d_organization_id, CAST(vo.care_site_id AS NVARCHAR(32))) AS organization_id,
+    COALESCE(pm.t1d_patient_id, CAST(o.person_id AS NVARCHAR(32)))          AS patient_id,
+    COALESCE(em.t1d_encounter_id, CAST(o.visit_occurrence_id AS NVARCHAR(32))) AS encounter_id,
+    COALESCE(obm.t1d_observation_id, CAST(o.observation_id AS NVARCHAR(32))) AS observation_id,
+    category.allowed_value                                                  AS category,
+    o.observation_date                                                      AS effective_date,
+    o.observation_datetime                                                  AS effective_time,
+    code.allowed_value                                                      AS code,
+    COALESCE(o.value_as_string,
+             CAST(o.value_as_number AS NVARCHAR(50)),
+             CASE o.value_as_concept_id WHEN 4188539 THEN 'yes'
+                                        WHEN 4188540 THEN 'no' END)         AS value,
+    COALESCE(o.unit_source_value,
+             CASE o.unit_concept_id
+                WHEN 8840   THEN 'mg/dL'
+                WHEN 8753   THEN 'mmol/L'
+                WHEN 8985   THEN '[iU]/mL'
+                WHEN 8554   THEN '%'
+                WHEN 8582   THEN 'cm'
+                WHEN 9529   THEN 'kg'
+                WHEN 9546   THEN 'm'
+                WHEN 586323 THEN N'°C'
+                WHEN 8876   THEN 'mm[Hg]'
+                WHEN 8541   THEN '/min'
+             END)                                                           AS value_units
+FROM dbo.observation o
+LEFT JOIN dbo.observation_map  obm ON obm.omop_observation_id = o.observation_id
+LEFT JOIN dbo.patient_id_map   pm  ON pm.omop_person_id       = o.person_id
+LEFT JOIN dbo.encounter_map    em  ON em.omop_visit_id        = o.visit_occurrence_id
+LEFT JOIN dbo.visit_occurrence vo  ON vo.visit_occurrence_id  = o.visit_occurrence_id
+LEFT JOIN dbo.organization_map om  ON om.omop_care_site_id    = vo.care_site_id
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'category' AND allowed_value =
+        CASE o.observation_type_concept_id
+            WHEN 4059767 THEN 'social-history'
+            WHEN 32883   THEN 'survey'
+            WHEN 4264167 THEN 'vital-signs'
+            WHEN 32856   THEN 'laboratory'
+            ELSE 'other'
+        END
+) category
+-- the code is the original T1DX code the forward ETL kept in observation_source_value
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'code' AND allowed_value = o.observation_source_value
+) code
+WHERE COALESCE(o.obs_event_field_concept_id, 0) <> 1147707   -- exclude medication-status rows
+  AND COALESCE(o.observation_source_value, '') NOT IN ('language', 'caregivers_language') 
+  AND category.allowed_value IS NOT NULL
+  AND code.allowed_value IS NOT NULL;
+ 
+# --- MEDICATIONS  <-  drug_exposure, observation (status), concept
+# --- status comes from the linked status observation the forward ETL writes
+# --- (observation_concept_id 1092304; value 9181 Active / 9173 Inactive, raw text in
+# --- value_as_string). Fallback for OMOP-native data with no status row: a drug
+# --- whose end date is on/after today is 'active', otherwise 'inactive'.
+# --- code_type comes from the SOURCE concept's vocabulary (drug_source_concept_id),
+# --- not the standard concept. No source concept -> 'internal'.
+# --- drug_name / drug_name_generic are concept names, not concept IDs.
+# --- drug_class / drug_sub_class: drug_type_concept_id is provenance, not a drug class,
+# --- so these are NULL until a class mapping (e.g. ATC) is defined in the spec.
+# --- end_date: the forward ETL sets it equal to written_date because T1DX has no end date.
+
+SELECT
+    COALESCE(om.t1d_organization_id,
+             CAST(COALESCE(vo.care_site_id, p.care_site_id) AS NVARCHAR(32))) AS organization_id,
+    COALESCE(pm.t1d_patient_id, CAST(de.person_id AS NVARCHAR(32)))           AS patient_id,
+    COALESCE(em.t1d_encounter_id, CAST(de.visit_occurrence_id AS NVARCHAR(32))) AS encounter_id,
+    COALESCE(mm.t1d_medication_id, CAST(de.drug_exposure_id AS NVARCHAR(32))) AS medication_id,
+    COALESCE(prm.t1d_provider_id, CAST(de.provider_id AS NVARCHAR(32)))       AS prescriber_id,
+    de.drug_exposure_start_date                                               AS written_date,
+    de.drug_exposure_end_date                                                 AS end_date,
+    de.drug_source_value                                                      AS code,
+    std.concept_name                                                          AS drug_name,
+    ing.concept_name                                                          AS drug_name_generic,
+    CAST(NULL AS NVARCHAR(100))                                               AS drug_class,      -- TODO
+    CAST(NULL AS NVARCHAR(100))                                               AS drug_sub_class,  -- TODO
+    status.allowed_value                                                      AS status,
+    code_type.allowed_value                                                   AS code_type
+FROM dbo.drug_exposure de
+LEFT JOIN dbo.medication_map   mm  ON mm.omop_drug_exposure_id = de.drug_exposure_id
+LEFT JOIN dbo.patient_id_map   pm  ON pm.omop_person_id        = de.person_id
+LEFT JOIN dbo.person           p   ON p.person_id              = de.person_id
+LEFT JOIN dbo.encounter_map    em  ON em.omop_visit_id         = de.visit_occurrence_id
+LEFT JOIN dbo.provider_map     prm ON prm.omop_provider_id     = de.provider_id
+LEFT JOIN dbo.visit_occurrence vo  ON vo.visit_occurrence_id   = de.visit_occurrence_id
+LEFT JOIN dbo.organization_map om  ON om.omop_care_site_id     = COALESCE(vo.care_site_id, p.care_site_id)
+LEFT JOIN dbo.concept          src ON src.concept_id           = de.drug_source_concept_id
+LEFT JOIN dbo.concept          std ON std.concept_id           = de.drug_concept_id
+ 
+-- linked status observation written by the forward ETL
+OUTER APPLY (
+    SELECT TOP (1) o.value_as_string, o.value_as_concept_id
+    FROM dbo.observation o
+    WHERE o.observation_event_id        = de.drug_exposure_id
+      AND o.obs_event_field_concept_id  = 1147707      -- drug_exposure.drug_exposure_id
+      AND o.observation_concept_id      = 1092304      -- LOINC 106199-3 Status
+    ORDER BY o.observation_id DESC
+) st
+ 
+-- ingredient (generic) name, if the standard concept has an Ingredient ancestor
+OUTER APPLY (
+    SELECT TOP (1) a.concept_name
+    FROM dbo.concept_ancestor ca
+    JOIN dbo.concept a ON a.concept_id = ca.ancestor_concept_id
+    WHERE ca.descendant_concept_id = de.drug_concept_id
+      AND a.concept_class_id = 'Ingredient'
+      AND a.standard_concept = 'S'
+    ORDER BY ca.min_levels_of_separation, a.concept_id
+) ing
+ 
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'status' AND allowed_value =
+        CASE
+            WHEN st.value_as_concept_id = 9181 OR LOWER(st.value_as_string) = 'active'   THEN 'active'
+            WHEN st.value_as_concept_id = 9173 OR LOWER(st.value_as_string) = 'inactive' THEN 'inactive'
+            WHEN st.value_as_string IS NOT NULL                                           THEN 'other'
+            WHEN de.drug_exposure_end_date >= CAST(GETDATE() AS DATE)                     THEN 'active'
+            ELSE 'inactive'
+        END
+) status
+ 
+OUTER APPLY (
+    SELECT TOP (1) allowed_value
+    FROM dbo.allowed_values
+    WHERE field_name = 'code_type' AND allowed_value =
+        CASE src.vocabulary_id
+            WHEN 'RxNorm' THEN 'rxnorm'
+            WHEN 'NDC'    THEN 'ndc'
+            WHEN 'SNOMED' THEN 'snomedct'
+            ELSE 'internal'
+        END
+) code_type
+WHERE status.allowed_value IS NOT NULL
+  AND code_type.allowed_value IS NOT NULL;
