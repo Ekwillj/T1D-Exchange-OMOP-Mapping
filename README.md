@@ -18,10 +18,10 @@ This mapping should be considered a draft and ETL revisions will occur. Addition
 
 **Key next steps include:**
 
-a. Validation of the current mappings.
-b. Review and alignment with T1D Exchange stakeholders to ensure agreement on mapping decisions and intended data representation.
-c. Evaluation of opportunities for standardization of select concepts used in the core table mappings.
-d. Continued development and standardization of OMOP concepts required for diabetes-specific data elements and tables that are not yet fully represented within the OMOP vocabulary ecosystem.
+**a.** Validation of the current mappings.
+**b.** Review and alignment with T1D Exchange stakeholders to ensure agreement on mapping decisions and intended data representation.
+**c.** Evaluation of opportunities for standardization of select concepts used in the core table mappings.
+**d.** Continued development and standardization of OMOP concepts required for diabetes-specific data elements and tables that are not yet fully represented within the OMOP vocabulary ecosystem.
 
 **Related Vocabulary Development**
 Work to support diabetes-specific standard concepts and vocabulary enhancements is being actively developed within the OHDSI Vocabulary repository:
