@@ -1,0 +1,767 @@
+--OMOP uses integer IDs and T1D exchange uses NVARCHAR id. 
+--Creating mapping tables for each NVARCHAR(32) identifier 
+CREATE TABLE dbo.organization_map (
+    omop_care_site_id INT IDENTITY(1,1) PRIMARY KEY, --The oMOP_care_site_id is an integer surrogate key that will be used to map the T1DX organization_id to the OMOP care_site_id.
+    t1d_organization_id NVARCHAR(32) UNIQUE 
+);
+-- this inserts the organization_id data into the tables masking T1DX NVARCHAR identifiers with surrogate integer keys for OMOP
+INSERT INTO dbo.organization_map (t1d_organization_id)
+SELECT DISTINCT organization_id FROM dbo.T1DX_patients;
+
+CREATE TABLE dbo.patient_id_map (
+    omop_person_id INT IDENTITY(1,1) PRIMARY KEY, --The omop_person_id is an integer surrogate key that will be used to map the T1DX patient_id to the OMOP person_id.
+    t1d_patient_id NVARCHAR(32) UNIQUE
+);
+
+--this inserts the patient_id data into the tables masking T1DX NVARCHAR identifiers with surrogate integer keys for OMOP
+INSERT INTO dbo.patient_id_map (t1d_patient_id)
+SELECT DISTINCT patient_id FROM dbo.T1DX_patients;
+
+CREATE TABLE dbo.provider_map (
+    omop_provider_id INT IDENTITY(1,1) PRIMARY KEY, --The OMOP provider_id is an integer surrogate key that will be used to map the T1DX provider_id to the OMOP provider_id.
+    t1d_provider_id NVARCHAR(32) UNIQUE
+);
+
+--this inserts the provider_id data into the tables masking T1DX NVARCHAR identifiers with surrogate integer keys for OMOP
+INSERT INTO dbo.provider_map (t1d_provider_id)
+SELECT DISTINCT provider_id FROM dbo.T1DX_providers;
+
+CREATE TABLE dbo.encounter_map ( 
+    omop_visit_id INT IDENTITY(1,1) PRIMARY KEY, --the omop_visit_id is an integer surrogate key that will be used to map the T1DX encounter_id to the OMOP visit_occurrence_id.
+    t1d_encounter_id NVARCHAR(32) UNIQUE
+);
+
+--this inserts the encounter_id data into the tables masking T1DX NVARCHAR identifiers with surrogate integer keys for OMOP
+INSERT INTO dbo.encounter_map (t1d_encounter_id)
+SELECT DISTINCT encounter_id FROM dbo.T1DX_encounters;
+
+CREATE TABLE dbo.observation_map (
+    omop_observation_id INT IDENTITY(1,1) PRIMARY KEY, --the omop_observation_id is an integer surrogate key that will be used to map the T1DX observation_id to the OMOP observation_id.
+    t1d_observation_id NVARCHAR(32) UNIQUE
+);
+
+--this inserts the observation_id data into the tables masking T1DX NVARCHAR identifiers with surrogate integer keys for OMOP
+INSERT INTO dbo.observation_map (t1d_observation_id)
+SELECT DISTINCT observation_id FROM dbo.T1DX_observations;
+
+CREATE TABLE dbo.condition_map (
+    omop_condition_id INT IDENTITY(1,1) PRIMARY KEY, --the omop_condition_id is an integer surrogate key that will be used to map the T1DX condition_id to the OMOP condition_id.
+    t1d_condition_id NVARCHAR(32) UNIQUE
+);
+
+--this inserts the condition_id data into the tables masking T1DX NVARCHAR identifiers with surrogate integer keys for OMOP
+INSERT INTO dbo.condition_map (t1d_condition_id)
+SELECT DISTINCT condition_id FROM dbo.T1DX_conditions;
+
+CREATE TABLE dbo.medication_map (
+    omop_drug_exposure_id INT IDENTITY(1,1) PRIMARY KEY, --the omop_drug_exposure_id is an integer surrogate key that will be used to map the T1DX medication_id to the OMOP drug_exposure_id.
+    t1d_medication_id NVARCHAR(32) UNIQUE
+);
+
+--this inserts the medication_id data into the tables masking T1DX NVARCHAR identifiers with surrogate integer keys for OMOP
+INSERT INTO dbo.medication_map (t1d_medication_id)
+SELECT DISTINCT medication_id FROM dbo.T1DX_medications;
+
+CREATE TABLE dbo.location_map (
+    omop_location_id INT IDENTITY(1,1) PRIMARY KEY, --the omop_location_id is an integer surrogate key that will be used to map the T1DX postal_code to the OMOP location_id.
+    t1d_postal_code  NVARCHAR(32) UNIQUE
+);
+
+--this inserts the postal_code data into the tables masking T1DX NVARCHAR identifiers with surrogate integer keys for OMOP
+INSERT INTO dbo.location_map (t1d_postal_code)
+SELECT DISTINCT postal_code FROM dbo.T1DX_patients
+WHERE postal_code IS NOT NULL;
+
+create table dbo.payer_plan_period_map (
+    omop_payer_plan_period_id INT IDENTITY(1,1) PRIMARY KEY, --the omop_payer_plan_period_id is an integer surrogate key that will be used to map the T1DX insurance_type to the OMOP payer_plan_period_id.
+    t1d_insurance_type NVARCHAR(32) UNIQUE
+);
+--this inserts the insurance_type data into the tables masking T1DX NVARCHAR identifiers with surrogate integer keys for OMOP
+INSERT INTO dbo.payer_plan_period_map (t1d_insurance_type)
+SELECT DISTINCT insurance_type FROM dbo.T1DX_patients
+WHERE insurance_type IS NOT NULL;
+
+--INSERTING INTO THE PERSON TABLE
+INSERT INTO dbo.person (
+    person_id,
+    care_site_id,
+    provider_id,
+    gender_concept_id,
+    year_of_birth,
+    month_of_birth,
+    day_of_birth,
+    race_concept_id,
+    ethnicity_concept_id,
+    location_id
+)
+SELECT
+    pid.omop_person_id,
+    org.omop_care_site_id,
+    prov.omop_provider_id,
+    CASE pat.sex
+        WHEN 'male' THEN 8507
+        WHEN 'female' THEN 8532
+        WHEN 'other' THEN 8521
+        WHEN 'unknown' THEN 0
+        ELSE 0
+    END,
+    YEAR (pat.birth_date)
+    MONTH (pat.birth_date),
+    DAY (pat.birth_date),
+    
+    --ELSE 1900
+    -- END,
+    -- COALESCE(YEAR(pat.birth_date), 1900),
+    -- COALESCE(MONTH(pat.birth_date), 1),
+    -- COALESCE(DAY(pat.birth_date), 1),
+    CASE pat.race_1
+        WHEN pat.race_1 IS NOT NULL THEN
+        AND pat.race_2 IS NOT NULL
+        AND pat.race_1 <> pat.race_2
+            THEN 1546847
+        WHEN '1002-5' THEN 8657
+        WHEN '2028-9' THEN 8515
+        WHEN '2054-5' THEN 8516
+        WHEN '2076-8' THEN 8557
+        WHEN '2106-3' THEN 8527
+        ELSE 0
+    END,
+    CASE pat.ethnicity
+        WHEN '2135-2' THEN 38003563
+        WHEN '2186-5' THEN 38003564
+        ELSE 0
+    END,
+    loc.location_id
+FROM dbo.T1DX_patients pat
+JOIN dbo.patient_id_map pid ON pid.t1d_patient_id = pat.patient_id
+JOIN dbo.organization_map org ON org.t1d_organization_id = pat.organization_id
+JOIN dbo.provider_map prov ON prov.t1d_provider_id = pat.provider_id
+LEFT JOIN dbo.location loc ON loc.zip = pat.postal_code
+WHERE pat.birth_date IS NOT NULL;
+
+SELECT COUNT(*) FROM dbo.organization_map;
+SELECT COUNT(*) FROM dbo.provider_map;
+SELECT COUNT(*) FROM dbo.patient_id_map;
+
+EXEC sp_help 'dbo.person';
+--Created surrogate keys for organization_id and provider_id so they can be acknowledged as integers  
+INSERT INTO dbo.care_site (care_site_id, care_site_name)
+SELECT omop_care_site_id, t1d_organization_id
+FROM dbo.organization_map
+WHERE omop_care_site_id NOT IN (SELECT care_site_id FROM dbo.care_site);
+
+INSERT INTO dbo.provider (provider_id, provider_name)
+SELECT omop_provider_id, t1d_provider_id
+FROM dbo.provider_map
+WHERE omop_provider_id NOT IN (SELECT provider_id FROM dbo.provider);
+
+--Inserting into the providers table
+INSERT INTO dbo.provider (
+    provider_id,
+    provider_name,
+    npi,
+    dea,
+    care_site_id,
+    specialty_concept_id,
+    specialty_source_value,
+    provider_source_value,
+    year_of_birth,
+    gender_concept_id
+)
+SELECT
+    TRY_CAST(pm.omop_provider_id AS INT),
+    COALESCE(prov.npi_id, 'Unknown Provider'),
+    prov.npi_id,
+    prov.dea_id,
+    COALESCE(TRY_CAST(org.omop_care_site_id AS INT), 0),
+    0,                -- No specialty info, default to unknown
+    CASE prov.provider_id_type -- specialty_source_value
+        WHEN 'MD' THEN 32577
+        WHEN 'DO' THEN 45877933
+        WHEN 'PA' THEN 38004512
+        WHEN 'NP' THEN 38004487
+        WHEN 'RN' THEN 38003716
+        WHEN 'RD' THEN 38003690
+        WHEN 'EP' THEN 38004044
+        WHEN 'PS' THEN 42628315
+        WHEN 'SW' THEN 38004499
+        WHEN 'CDE' THEN 38003799
+        WHEN 'PH' THEN 38003810
+        WHEN 'OD' THEN 4151051
+        WHEN 'PO' THEN 38004030
+        WHEN 'PT' THEN 38004490
+        WHEN 'OT' THEN 38004492
+        WHEN 'OTH' THEN 0
+    ELSE 0
+    END,
+    prov.provider_id, -- provider_source_value
+    NULL,             -- year_of_birth
+    0                 -- gender_concept_id
+FROM dbo.t1dx_providers prov
+JOIN dbo.provider_map pm ON pm.t1d_provider_id = prov.provider_id
+LEFT JOIN dbo.organization_map org ON org.t1d_organization_id = prov.organization_id
+WHERE pm.omop_provider_id NOT IN (SELECT provider_id FROM dbo.provider);
+
+
+SELECT COLUMN_NAME
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 't1dx_providers';
+
+--Mapping the Observations table to OMOP
+
+INSERT INTO dbo.observation (
+    observation_id,
+    person_id,
+    observation_concept_id,
+    observation_date,
+    observation_datetime,
+    observation_type_concept_id,
+    value_as_number,
+    value_as_string,
+    value_as_concept_id,
+    unit_concept_id,
+    visit_occurrence_id,
+    observation_source_value,
+    observation_source_concept_id
+)
+SELECT 
+    omap.omop_observation_id,
+    pmap.omop_person_id,
+    -- Map LOINC or internal code to OMOP concept_id
+    CASE
+   WHEN t1dx.code = '54845-3' THEN 40757976
+   WHEN t1dx.code = '11367-0' THEN 3012697
+   WHEN t1dx.code = '74011-8' THEN 44786669
+   WHEN t1dx.code = '97063-2' THEN 1616473
+   WHEN t1dx.code = '55758-7' THEN 40758879
+   WHEN t1dx.code = '70272-0' THEN 42868744
+   WHEN t1dx.code = '94328-2' THEN 36660083
+   WHEN t1dx.code = '44261-6' THEN 3042932
+   WHEN t1dx.code = '70274-6' THEN 42868746
+   WHEN t1dx.code = '88124-3' THEN 36304002
+   WHEN t1dx.code = '88122-7' THEN 36304041
+   WHEN t1dx.code = '93030-5' THEN 37020730
+   WHEN t1dx.code = '93033-9' THEN 37020172
+    END,
+    t1dx.effective_date,
+    t1dx.effective_time,
+--mapping category to OMOP observation_type_concept_id
+    CASE t1dx.category
+        WHEN 'social-history' THEN 4059767
+        WHEN 'survey' THEN 32883
+        ELSE 0
+   END,
+   CASE WHEN ISNUMERIC(t1dx.value) = 1 THEN CAST(t1dx.value AS FLOAT) ELSE NULL END,
+   CASE WHEN ISNUMERIC(t1dx.value) = 0 THEN t1dx.value ELSE NULL END,
+   CASE t1dx.value
+       WHEN 'yes' THEN 4188539
+       WHEN 'no' THEN 4188540
+       ELSE 0
+    END,
+    --mappig value unites to unit_concept_id
+   CASE t1dx.value_units
+       WHEN 'mg/dL' THEN 8840
+       WHEN 'mmol/L' THEN 8753
+       WHEN '[iU]/mL' THEN 8985
+       WHEN '%' THEN 8554
+       WHEN 'cm' THEN 8582
+       WHEN 'kg' THEN 9529
+       WHEN 'm' THEN 9546
+       WHEN '°C' THEN 586323
+       WHEN 'mm[Hg]' THEN 8876
+       WHEN '/min' THEN 8541
+       ELSE 0
+    END,
+    emap.omop_visit_id,
+    t1dx.code,
+    CASE t1dx.code_type
+        WHEN 'LOINC' THEN 37079395
+        WHEN 't2d' THEN 0
+        ELSE 0
+    END
+FROM dbo.T1DX_observations t1dx
+JOIN dbo.observation_map omap ON omap.t1d_observation_id = t1dx.observation_id
+JOIN dbo.patient_id_map pmap ON pmap.t1d_patient_id = t1dx.patient_id
+LEFT JOIN dbo.encounter_map emap ON emap.t1d_encounter_id = t1dx.encounter_id;
+
+
+--Inserting into the measurement table
+INSERT INTO dbo.measurement (
+    measurement_id,
+    person_id,
+    measurement_concept_id,
+    measurement_date,
+    measurement_datetime,
+    measurement_type_concept_id,
+    value_as_number,
+    value_as_concept_id,
+    unit_concept_id,
+    unit_source_value,
+    value_source_value,
+    visit_occurrence_id,
+    measurement_source_value,
+    measurement_source_concept_id
+)
+SELECT
+    mmap.omop_measurement_id,
+    pmap.omop_person_id,
+    CASE t1dx.code
+        WHEN '8280-0'  THEN 3016258
+        WHEN '29463-7' THEN 3025315
+        WHEN '8302-2'  THEN 3036277
+        WHEN '8310-5'  THEN 3020891
+        WHEN '39156-5' THEN 3038553
+        WHEN '59408-5' THEN 40762499
+        WHEN '9279-1'  THEN 3024171
+        WHEN '8480-6'  THEN 3004249
+        WHEN '8462-4'  THEN 3012888
+        WHEN '8478-0'  THEN 3027598
+        WHEN 'asgs'    THEN 601899
+        WHEN '4548-4'  THEN 3004410
+        WHEN '17856-6' THEN 3005673
+        WHEN '4549-2'  THEN 3003309
+        WHEN 'poca1c'  THEN 4184637
+        WHEN '31209-0' THEN 3016273
+        WHEN '56718-0' THEN 40759837
+        WHEN '32636-3' THEN 3046293
+        WHEN '8072-1'  THEN 3037870
+        WHEN '76651-9' THEN 46235190
+        WHEN '13926-1' THEN 3020148
+        WHEN '56540-8' THEN 40759660
+        WHEN '2093-3'  THEN 3027114
+        WHEN '2085-9'  THEN 3007070
+        WHEN '2089-1'  THEN 3028437
+        WHEN '13457-5' THEN 3017216
+        WHEN '2571-8'  THEN 3022192
+        WHEN '3024-7'  THEN 3008598
+        WHEN '3026-2'  THEN 3016991
+        WHEN '14957-5' THEN 3000034
+        WHEN '6942-7'  THEN 3008512
+        WHEN '2161-8'  THEN 3017250
+        WHEN '2160-0'  THEN 3016723
+        WHEN '10466-1' THEN 3021391
+        WHEN '1863-0'  THEN 3037278
+        WHEN '33037-3' THEN 3045716
+        WHEN '1986-9'  THEN 3010084
+        ELSE 0
+    END,
+    t1dx.effective_date,
+    t1dx.effective_time,
+    CASE t1dx.category
+        WHEN 'vital-signs' THEN 4264167
+        WHEN 'laboratory' THEN 32856
+        ELSE 0
+    END,
+    CASE WHEN ISNUMERIC(t1dx.value) = 1 THEN CAST(t1dx.value AS FLOAT) ELSE NULL END,
+    CASE t1dx.value_units
+       WHEN 'mg/dL' THEN 8840
+       WHEN 'mmol/L' THEN 8753
+       WHEN '[iU]/mL' THEN 8985
+       WHEN '%' THEN 8554
+       WHEN 'cm' THEN 8582
+       WHEN 'kg' THEN 9529
+       WHEN 'm' THEN 9546
+       WHEN '°C' THEN 586323
+       WHEN 'mm[Hg]' THEN 8876
+       WHEN '/min' THEN 8541
+       ELSE 0
+    END,
+    t1dx.value_units,
+    t1dx.value,
+    emap.omop_visit_id,
+    t1dx.code,
+    CASE t1dx.code_type
+        WHEN 'LOINC' THEN 37079395
+        WHEN 't2d' THEN 0
+        ELSE 0
+    END
+    FROM dbo.T1DX_observations t1dx
+    JOIN dbo.patient_id_map pmap  ON pmap.t1d_patient_id = t1dx.patient_id
+    LEFT JOIN dbo.encounter_map emap ON emap.t1d_encounter_id = t1dx.encounter_id
+    WHERE t1dx.code IN (
+        '8280-0','29463-7','8302-2','8310-5','39156-5',
+        '59408-5','9279-1','8480-6','8462-4','8478-0',
+        'asgs','4548-4','17856-6','4549-2','poca1c',
+        '31209-0','56718-0','32636-3','8072-1','76651-9',
+        '13926-1','56540-8','2093-3','2085-9','2089-1',
+        '13457-5','2571-8','3024-7','3026-2','14957-5',
+        '6942-7','2161-8','2160-0','10466-1','1863-0',
+        '33037-3','1986-9'
+    )
+    AND (@StartDate IS NULL OR t1dx.effective_date >= @StartDate)
+    AND (@EndDate   IS NULL OR t1dx.effective_date <  @EndDate);
+
+--Inserting into the visit_occurence table
+INSERT INTO dbo.visit_occurrence (
+visit_occurrence_id,
+person_id,
+visit_concept_id,
+visit_start_date,
+visit_end_date,
+visit_end_datetime,
+visit_type_concept_id,
+provider_id,
+care_site_id,
+visit_source_value,
+visit_source_concept_id
+
+)
+SELECT
+t1dx.encounter_id,
+pmap.omop_person_id,
+    CASE t1dx.class
+        WHEN 'inpatient' THEN 9201
+        WHEN 'outpatient' THEN 9202
+        WHEN 'ambulatory' THEN 9202
+        WHEN 'emergency' THEN 9203
+        WHEN 'home' THEN 581476
+        WHEN 'field' THEN 42898160
+        WHEN 'daytime' THEN 9202
+        WHEN 'virtual' THEN 722455
+        WHEN 'education' THEN 9202 --this is defined as an encounter during which the patient receives education. because the encounter represents a healthcare interaction rather than an inpatient, emergency, or home-care setting.
+        WHEN 'other' THEN 0
+        WHEN 'medication' THEN 38004338
+        WHEN 'laboratory' THEN 32036
+    ELSE 0
+END,
+t1dx.encounter_date,
+t1dx.encounter_date, --The source specification provides only an encounter start date. OMOP requires visit_start_date and visit_end_date. The ETL derives visit_end_date as equal to visit_start_date for all visits.
+t1dx.encounter_time,
+'32817', -- this identifies that the encounter was derived from an EHR system. 
+prov.omop_provider_id,
+org.omop_care_site_id,
+t1dx.class,
+0,
+END
+FROM dbo.T1DX_encounters t1dx
+JOIN dbo.encounter_map emap ON emap.t1d_encounter_id = t1dx.encounter_id
+JOIN dbo.patient_id_map pmap ON pmap.t1d_patient_id = t1dx.patient_id
+LEFT JOIN dbo.provider_map prov ON prov.t1d_provider_id = t1dx.provider_id
+LEFT JOIN dbo.organization_map org ON org.t1d_organization_id = t1dx.organization_id;
+
+--Mapping Conditions table
+INSERT INTO dbo.condition_occurrence (
+    condition_occurrence_id,
+    person_id,
+    condition_concept_id,
+    condition_start_date,
+    condition_end_date,
+    condition_type_concept_id,
+    stop_reason,
+    provider_id,
+    visit_occurrence_id,
+    condition_source_value,
+    condition_source_concept_id
+)
+
+SELECT 
+    cmap.omop_condition_id,
+    pmap.omop_person_id,
+    0, --there are no conditions clarified in the condition table for the T1DX data spec. Could map to 201254, type 1 diabetes mellitus, but other conditions are not specified. This is a placeholder for future mapping.
+    t1dx.onset_date,  
+    t1dx.abatement_date,
+    32817, -- this identifies that the condition was derived from an EHR system.
+    NULL AS stop_reason,
+    prov.omop_provider_id,
+    emap.omop_visit_id,
+    t1dx.code AS condition_source_value,
+    IS NULL(src.concept_id, 0) AS condition_source_concept_id
+FROM dbo.T1DX_conditions t1dx
+JOIN dbo.condition_map cmap ON cmap.t1d_condition_id = t1dx.condition_id
+JOIN dbo.patient_id_map   pmap ON pmap.t1d_patient_id  = t1dx.patient_id
+LEFT JOIN dbo.provider_map  prov ON prov.t1d_provider_id = t1dx.provider_id
+LEFT JOIN dbo.encounter_map emap ON emap.t1d_encounter_id = t1dx.encounter_id
+CROSS APPLY (
+    SELECT CASE t1dx.code_type
+        WHEN 'snomedct' THEN 'SNOMED'
+        WHEN 'icd10' THEN 'ICD10CM'
+        WHEN 'icd9' THEN 'ICD9CM'
+        WHEN 'icd11' THEN 'ICD11'
+    END AS vocabulary_id
+) v
+LEFT JOIN dbo.concept src
+       ON src.concept_code   = t1dx.code
+      AND src.vocabulary_id  = v.vocabulary_id
+LEFT JOIN dbo.concept_relationship cr
+       ON cr.concept_id_1    = src.concept_id
+      AND cr.relationship_id = 'Maps to'
+      AND cr.invalid_reason IS NULL
+LEFT JOIN dbo.concept c
+       ON c.concept_id     = cr.concept_id_2
+      AND c.invalid_reason IS NULL;
+
+-- Provenance: source rows come from written prescriptions (written_date, prescriber_id).
+-- 32838 = 'EHR prescription' (Type Concept domain; confirmed in Athena).
+DECLARE @drug_type_concept_id INT = 32838;
+ 
+ --mapping to drug_exposure table
+INSERT INTO dbo.drug_exposure (
+      drug_exposure_id,
+      person_id,
+      drug_concept_id,
+      drug_exposure_start_date,
+      drug_exposure_end_date,
+      drug_type_concept_id,
+      stop_reason,
+      provider_id,
+      visit_occurrence_id,
+      quantity,
+      days_supply,
+      sig,
+      route_concept_id,
+      lot_number,
+      drug_source_value,
+      drug_source_concept_id
+)
+SELECT
+    mmap.omop_drug_exposure_id,
+    pmap.omop_person_id,
+ 
+    -- Standard concept: source concept -> 'Maps to' -> standard Drug concept
+    COALESCE(std.concept_id, 0)                         AS drug_concept_id,
+ 
+    t1dx.written_date                                   AS drug_exposure_start_date,
+    t1dx.written_date                                   AS drug_exposure_end_date,   -- required (NOT NULL); end unknown
+    @drug_type_concept_id                               AS drug_type_concept_id,
+    NULL                                                AS stop_reason,
+    prov.omop_provider_id,
+    emap.omop_visit_id,
+    NULL                                                AS quantity,
+    NULL                                                AS days_supply,
+    NULL                                                AS sig,
+    NULL                                                AS route_concept_id,
+    NULL                                                AS lot_number,
+    t1dx.code                                           AS drug_source_value,
+ 
+    -- Source concept: the RxNorm / NDC / SNOMED concept as-is; 0 if internal or not found
+    COALESCE(src.concept_id, 0)                         AS drug_source_concept_id
+ 
+FROM dbo.T1DX_medications t1dx
+JOIN dbo.medication_map mmap
+    ON mmap.t1d_medication_id = t1dx.medication_id
+JOIN dbo.patient_id_map pmap
+    ON pmap.t1d_patient_id = t1dx.patient_id
+LEFT JOIN dbo.provider_map prov
+    ON prov.t1d_provider_id = t1dx.prescriber_id
+LEFT JOIN dbo.encounter_map emap
+    ON emap.t1d_encounter_id = t1dx.encounter_id
+ 
+-- Source concept lookup (internal / unknown code types return no row -> 0)
+OUTER APPLY (
+    SELECT TOP (1) c.concept_id
+    FROM dbo.concept c
+    WHERE c.vocabulary_id = CASE LOWER(t1dx.code_type)
+                                WHEN 'rxnorm'   THEN 'RxNorm'
+                                WHEN 'ndc'      THEN 'NDC'
+                                WHEN 'snomedct' THEN 'SNOMED'
+                            END
+      AND c.concept_code = t1dx.code
+    ORDER BY c.concept_id
+) src
+ 
+-- Standard concept lookup (RxNorm maps to itself when standard)
+OUTER APPLY (
+    SELECT TOP (1) tgt.concept_id
+    FROM dbo.concept_relationship cr
+    JOIN dbo.concept tgt
+        ON tgt.concept_id = cr.concept_id_2
+    WHERE cr.concept_id_1     = src.concept_id
+      AND cr.relationship_id  = 'Maps to'
+      AND cr.invalid_reason IS NULL
+      AND tgt.standard_concept = 'S'
+      AND tgt.domain_id        = 'Drug'
+    ORDER BY tgt.concept_id
+) std
+ 
+WHERE t1dx.written_date IS NOT NULL;   -- start date is NOT NULL in drug_exposure
+ 
+ 
+
+--T1DX medication status -> dbo.observation
+
+DECLARE @med_status_obs_concept_id  INT = 1092304;  -- LOINC 106199-3 Status (Observation, standard)
+DECLARE @obs_event_field_concept_id INT = 1147707;  -- drug_exposure.drug_exposure_id (Metadata domain; confirmed)
+DECLARE @obs_type_concept_id        INT = 32817;
+DECLARE @max_obs_id BIGINT = (SELECT COALESCE(MAX(observation_id), 0) FROM dbo.observation);
+ 
+INSERT INTO dbo.observation (
+      observation_id,
+      person_id,
+      observation_concept_id,
+      observation_date,
+      observation_type_concept_id,
+      value_as_number,
+      value_as_string,
+      value_as_concept_id,
+      qualifier_concept_id,
+      unit_concept_id,
+      provider_id,
+      visit_occurrence_id,
+      observation_source_value,
+      observation_source_concept_id,
+      value_source_value,
+      observation_event_id,
+      obs_event_field_concept_id
+)
+SELECT
+    @max_obs_id + ROW_NUMBER() OVER (ORDER BY mmap.omop_drug_exposure_id),
+    pmap.omop_person_id,
+    @med_status_obs_concept_id,
+    t1dx.written_date,
+    @obs_type_concept_id,
+    NULL,
+    LOWER(t1dx.status),                              -- raw status preserved
+    CASE LOWER(t1dx.status)
+        WHEN 'active'   THEN 9181   -- SNOMED 55561003 Active
+        WHEN 'inactive' THEN 9173   -- SNOMED 73425007 Inactive
+        ELSE 0                                       -- 'other' / unknown
+    END,
+    NULL, NULL,
+    prov.omop_provider_id,
+    emap.omop_visit_id,
+    'T1DX_medications.status',
+    0,
+    t1dx.status,
+    mmap.omop_drug_exposure_id,
+    @obs_event_field_concept_id
+FROM dbo.T1DX_medications t1dx
+JOIN dbo.medication_map mmap
+    ON mmap.t1d_medication_id = t1dx.medication_id
+JOIN dbo.patient_id_map pmap
+    ON pmap.t1d_patient_id = t1dx.patient_id
+LEFT JOIN dbo.provider_map prov
+    ON prov.t1d_provider_id = t1dx.prescriber_id
+LEFT JOIN dbo.encounter_map emap
+    ON emap.t1d_encounter_id = t1dx.encounter_id
+WHERE t1dx.written_date IS NOT NULL
+  AND t1dx.status IS NOT NULL;
+
+INSERT INTO dbo.location (
+    location_id, 
+    zip, 
+    location_source_value
+
+    )
+
+SELECT 
+lm.omop_location_id, 
+lm.t1d_postal_code, 
+lm.t1d_postal_code
+FROM dbo.location_map lm
+WHERE NOT EXISTS (
+    SELECT 1 FROM dbo.location l WHERE l.location_id = lm.omop_location_id
+);
+
+--mapping the care_site table
+INSERT into dbo.care_site (
+    care_site_id, 
+    care_site_name,
+    place_of_service_concept_id,
+    location_id,
+    care_site_source_value,
+    place_of_service_source_value
+)
+SELECT
+omap.omop_care_site_id,
+omap.t1d_organization_id,
+0,
+NULL,
+omap.t1d_organization_id,
+NULL
+FROM dbo.organization_map omap
+WHERE NOT EXISTS (
+    SELECT 1 FROM dbo.care_site cs WHERE cs.care_site_id = omap.omop_care_site_id
+
+--mapping to the death table
+INSERT INTO dbo.death (
+    person_id,
+    death_date,
+    death_datetime,
+    death_type_concept_id,
+    cause_concept_id,
+    cause_source_value,
+    cause_source_concept_id 
+)
+
+SELECT
+pmap.omop_person_id,
+pat.death_date,
+NULL,
+NULL,
+0,
+pat.cause_of_death,
+0
+FROM dbo.T1DX_patients pat
+JOIN dbo.patient_id_map pmap
+    ON pmap.t1d_patient_id = pat.patient_id
+WHERE pat.death_date IS NOT NULL;
+
+DECLARE @max_ppp BIGINT = (SELECT COALESCE(MAX(payer_plan_period_id), 0) FROM dbo.payer_plan_period);
+
+--mapping to the payer_plan_period table
+INSERT INTO dbo.payer_plan_period (
+      payer_plan_period_id,
+      person_id,
+      payer_plan_period_start_date,
+      payer_plan_period_end_date,
+      payer_concept_id,
+      payer_source_value,
+      payer_source_concept_id,
+      plan_concept_id,
+      plan_source_value,
+      plan_source_concept_id,
+      sponsor_concept_id,
+      sponsor_source_value,
+      sponsor_source_concept_id,
+      family_source_value,
+      stop_reason_concept_id,
+      stop_reason_source_value,
+      stop_reason_source_concept_id
+)
+SELECT
+    @max_ppp + ROW_NUMBER() OVER (ORDER BY pm.omop_person_id, ins.tier_order),
+    pm.omop_person_id,
+    enc.first_date,
+    enc.last_date,
+    CASE ins.insurance_type            -- SOPT payer concepts (Payer domain)
+        WHEN '1'  THEN 436             -- None, self pay: Self-pay
+        WHEN '2'  THEN 327             -- Private: Private Insurance
+        WHEN '3'  THEN 289             -- Medicaid
+        WHEN '4'  THEN 296             -- Military: SOPT 311 DoD TRICARE (CHAMPUS)
+        WHEN '5'  THEN 280             -- Medicare
+        WHEN '9'  THEN 0               -- Other 
+        WHEN '10' THEN 0               -- Unknown
+        ELSE 0
+    END,
+    ins.insurance_type,
+    0,
+    0,
+    ins.tier,
+    0,
+    0,
+    NULL,
+    0,
+    NULL,
+    0,
+    NULL,
+    0
+FROM dbo.T1DX_patients pat
+JOIN dbo.patient_id_map pm
+    ON pm.t1d_patient_id = pat.patient_id
+JOIN dbo.person p
+    ON p.person_id = pm.omop_person_id
+JOIN (
+    SELECT e.patient_id,
+           MIN(e.encounter_date) AS first_date,
+           MAX(e.encounter_date) AS last_date
+    FROM dbo.T1DX_encounters e
+    WHERE e.encounter_date IS NOT NULL
+    GROUP BY e.patient_id
+) enc
+    ON enc.patient_id = pat.patient_id
+CROSS APPLY (VALUES
+    (1, 'primary',   pat.primary_insurance_type),
+    (2, 'secondary', pat.secondary_insurance_type),
+    (3, 'tertiary',  pat.tertiary_insurance_type)
+) ins (tier_order, tier, insurance_type)
+WHERE ins.insurance_type IS NOT NULL;
